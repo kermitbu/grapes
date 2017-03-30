@@ -80,7 +80,7 @@ func (c *CoreServer) InitComplete() {
 const BufLength = 1024
 
 func (c *CoreServer) handleServerConn(conn net.Conn) {
-	log.Info("=====>> 处理一个新的连接")
+	log.Info("===>>> New Connection ===>>>")
 
 	head := new(MessageHead)
 
@@ -102,23 +102,17 @@ func (c *CoreServer) handleServerConn(conn net.Conn) {
 			}
 		}
 
-		log.Info("接收到数据：%v", unhandledData)
+		log.Debug("接收到数据：%v", unhandledData)
 
 		for nil == head.Unpack(unhandledData) {
 			msgLen := head.BodyLen + uint16(head.HeadLen)
-
-			log.Debug("HeadLen = %d, BodyLen = %d, msgLen = %d, head.cmd= %d", head.HeadLen, head.BodyLen, msgLen, head.Cmd)
-
 			msgData := unhandledData[:msgLen]
-
 			unhandledData = unhandledData[msgLen:]
 
 			c.deliverMessage(conn, head, msgData[head.HeadLen:])
-
-			log.Debug("%v", msgData)
 		}
 	}
-	log.Info("*********处理结束********")
+	log.Info("===>>> Connection closed ===>>>")
 }
 
 func (c *CoreServer) Handle(id uint16, f handleFunc) {
