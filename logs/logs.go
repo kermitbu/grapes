@@ -18,7 +18,6 @@ func init() {
 		for {
 			<-logChan
 			// 从Channel中取出来写文件
-
 		}
 	}()
 }
@@ -32,7 +31,7 @@ func Debug(format string, args ...interface{}) {
 		t := time.Now().Format(time.Stamp)
 		brush("["+t+"]", 58)
 		brush(" "+"DEBUG"+" ", 58)
-		brush(" "+file+" ", 58)
+		// brush(" "+file+" ", 58)
 		brush(" "+funcName+"("+strconv.Itoa(line)+")|", 58)
 		brush(fmt.Sprintf(format, args...), 10)
 		fmt.Printf("\n")
@@ -51,7 +50,7 @@ func Info(format string, args ...interface{}) {
 		t := time.Now().Format(time.Stamp)
 		brush("["+t+"]", 55)
 		brush(" "+"INFO "+" ", 55)
-		brush(" "+file+" ", 55)
+		// brush(" "+file+" ", 55)
 		brush(" "+funcName+"("+strconv.Itoa(line)+")|", 55)
 		brush(fmt.Sprintf(format, args...), 7)
 		fmt.Printf("\n")
@@ -70,7 +69,7 @@ func Warn(format string, args ...interface{}) {
 		t := time.Now().Format(time.Stamp)
 		brush("["+t+"]", 62)
 		brush(" "+"WARN "+" ", 62)
-		brush(" "+file+" ", 62)
+		// brush(" "+file+" ", 62)
 		brush(" "+funcName+"("+strconv.Itoa(line)+")|", 62)
 		brush(fmt.Sprintf(format, args...), 14)
 		fmt.Printf("\n")
@@ -89,7 +88,7 @@ func Error(format string, args ...interface{}) {
 		t := time.Now().Format(time.Stamp)
 		brush("["+t+"]", 61)
 		brush(" "+"ERROR"+" ", 61)
-		brush(" "+file+" ", 61)
+		// brush(" "+file+" ", 61)
 		brush(" "+funcName+"("+strconv.Itoa(line)+")|", 61)
 		brush(fmt.Sprintf(format, args...), 13)
 		fmt.Printf("\n")
@@ -108,7 +107,7 @@ func Fatal(format string, args ...interface{}) {
 		t := time.Now().Format(time.Stamp)
 		brush("["+t+"]", 76)
 		brush(" "+"FATAL"+" ", 76)
-		brush(" "+file+" ", 76)
+		// brush(" "+file+" ", 76)
 		brush(" "+funcName+"("+strconv.Itoa(line)+")|", 76)
 		brush(fmt.Sprintf(format, args...), 12)
 		fmt.Printf("\n")

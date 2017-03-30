@@ -3,7 +3,7 @@ package core
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
+	log "github.com/kermitbu/grapes/logs"
 	utils "github.com/kermitbu/grapes/utils"
 	"io"
 	"net"
@@ -41,21 +41,28 @@ func (m *MessageHead) Pack() (buf []byte) {
 	return buf
 }
 
-type handleFunc func(uint16, []byte)
-type CoreServer struct {
-	allHandlerName map[uint16]string
-	allHandlerFunc map[uint16]handleFunc
-
-	allConnects map[string]*net.TCPConn
-}
-
 func (c *CoreServer) InitComplete() {
-	addr, err := net.ResolveTCPAddr("tcp", ":4040")
+	// 作为客户端，连接服务器，并准备接收数据
+
+	// for i := 0; i < 4; i++ {
+	// 	addr, err := net.ResolveTCPAddr("tcp", ":4040")
+	// 	checkErr(err)
+	// 	conn, err := net.DialTCP("tcp", nil, addr)
+	// 	checkErr(err)
+
+	// 	allClientConnects[addr.String()] = conn
+
+	// 	defer conn.Close()
+	// 	go handlClientConn(conn)
+	// }
+
+	// 作为服务器端监听端口
+	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:4040")
 	checkErr(err)
 	listen, err := net.ListenTCP("tcp", addr)
 	checkErr(err)
 
-	fmt.Println("服务器正常启动监听")
+	log.Info("服务器正常启动监听")
 
 	complete := make(chan int, 1)
 
@@ -63,7 +70,7 @@ func (c *CoreServer) InitComplete() {
 		for {
 			conn, err := listen.Accept()
 			checkErr(err)
-			go c.handleConn(conn)
+			go c.handleServerConn(conn)
 		}
 	}(listen)
 
@@ -72,8 +79,8 @@ func (c *CoreServer) InitComplete() {
 
 const BufLength = 1024
 
-func (c *CoreServer) handleConn(conn net.Conn) {
-	fmt.Println("=====>> 处理一个新的连接")
+func (c *CoreServer) handleServerConn(conn net.Conn) {
+	log.Info("=====>> 处理一个新的连接")
 
 	head := new(MessageHead)
 
@@ -95,55 +102,83 @@ func (c *CoreServer) handleConn(conn net.Conn) {
 			}
 		}
 
-		fmt.Println("接收到数据：", unhandledData)
+		log.Info("接收到数据：%v", unhandledData)
 
 		for nil == head.Unpack(unhandledData) {
 			msgLen := head.BodyLen + uint16(head.HeadLen)
 
-			fmt.Printf("HeadLen = %d, BodyLen = %d, msgLen = %d, head.cmd= %d\n", head.HeadLen, head.BodyLen, msgLen, head.Cmd)
+			log.Debug("HeadLen = %d, BodyLen = %d, msgLen = %d, head.cmd= %d", head.HeadLen, head.BodyLen, msgLen, head.Cmd)
 
 			msgData := unhandledData[:msgLen]
 
 			unhandledData = unhandledData[msgLen:]
 
-			c.deliverMessage(head, msgData[head.HeadLen:])
+			c.deliverMessage(conn, head, msgData[head.HeadLen:])
 
-			fmt.Println(msgData)
+			log.Debug("%v", msgData)
 		}
 	}
-	fmt.Println("*********处理结束********")
+	log.Info("*********处理结束********")
 }
 
-func (c *CoreServer) Register(id uint16, f handleFunc) {
+func (c *CoreServer) Handle(id uint16, f handleFunc) {
+
 	if c.allHandlerFunc == nil {
-		fmt.Println("c.allHandlerFunc")
 		c.allHandlerName = make(map[uint16]string)
 		c.allHandlerFunc = make(map[uint16]handleFunc)
 	}
-
-	if c.allHandlerFunc == nil {
-		fmt.Println("core: Register handles is nil")
-	}
 	if _, ok := c.allHandlerFunc[id]; ok {
-		fmt.Println("core: Register called twice for handles ", id)
+		log.Warn("Register called twice for handles ", id)
 	}
 	c.allHandlerFunc[id] = f
 
 }
 
-func (c *CoreServer) deliverMessage(head *MessageHead, body []byte) {
+func (c *CoreServer) deliverMessage(conn net.Conn, msghead *MessageHead, body []byte) {
+	if handler, ok := c.allHandlerFunc[msghead.Cmd]; ok {
 
-	fmt.Println(c.allHandlerFunc)
-	if handler, ok := c.allHandlerFunc[head.Cmd]; ok {
-		handler(head.BodyLen, body)
+		req := &GRequest{connect: &conn, head: msghead, DataLen: msghead.BodyLen, DataBuffer: body}
+		rsp := &GResponse{connect: &conn}
+		handler(req, rsp)
 	} else {
-		fmt.Println("从未注册过", head.Cmd, "的处理方法")
+		log.Warn("Never register processing method [%v]", msghead.Cmd)
 	}
 }
 
 func checkErr(err error) {
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err.Error())
 		os.Exit(-1)
 	}
+}
+
+type GRequest struct {
+	connect    *net.Conn
+	head       *MessageHead
+	DataLen    uint16
+	DataBuffer []byte
+}
+
+type GResponse struct {
+	connect    *net.Conn
+	DataLen    uint16
+	DataBuffer []byte
+}
+
+func (r *GResponse) Send(data []byte) {
+	if len(data) > 0 {
+
+		(*(r.connect)).Write(data)
+	} else {
+		log.Warn("Send data is empty.")
+	}
+}
+
+type handleFunc func(request *GRequest, response *GResponse)
+
+type CoreServer struct {
+	allHandlerName map[uint16]string
+	allHandlerFunc map[uint16]handleFunc
+
+	allClientConnects map[string]*net.TCPConn
 }

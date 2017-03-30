@@ -37,10 +37,6 @@ func (s *severity) set(val severity) {
 
 var kernel32 = syscall.NewLazyDLL("kernel32.dll")
 
-func init() {
-
-}
-
 func brush(s string, i int) {
 	proc := kernel32.NewProc("SetConsoleTextAttribute")
 	handle, _, _ := proc.Call(uintptr(syscall.Stdout), uintptr(i))
