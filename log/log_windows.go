@@ -66,7 +66,6 @@ func Warn(format string, v ...interface{}) {
 
 func Error(format string, v ...interface{}) {
 	ColorOutput(LOGCOLOR_PINK, 2, fmt.Sprintf(format, v...))
-
 }
 
 func Fatal(format string, v ...interface{}) {
