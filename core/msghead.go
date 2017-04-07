@@ -13,7 +13,6 @@ type MessageHead struct {
 	Version byte
 	HeadLen byte
 	BodyLen uint16
-	adfe    uint16
 }
 
 func (m *MessageHead) Unpack(buf []byte) error {
@@ -54,9 +53,18 @@ type GResponse struct {
 
 func (r *GResponse) Send(data []byte) {
 	if len(data) > 0 {
-
 		(*(r.connect)).Write(data)
 	} else {
 		log.Warn("Send data is empty.")
 	}
+}
+
+func (r *GResponse) Close() {
+	(*(r.connect)).Close()
+}
+
+// 服务器地址信息
+type NodeAddr struct {
+	Ip   string
+	Port string
 }

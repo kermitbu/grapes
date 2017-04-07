@@ -3,21 +3,21 @@ package core
 import (
 	"flag"
 	log "github.com/kermitbu/grapes/log"
+	proto "github.com/kermitbu/grapes/proto"
 	"io"
 	"net"
 )
 
+// 外部用于注册事件处理方法的方法
 func (c *CoreServer) Handle(id uint16, f handleFunc) {
 
 	if c.allHandlerFunc == nil {
-		c.allHandlerName = make(map[uint16]string)
 		c.allHandlerFunc = make(map[uint16]handleFunc)
 	}
 	if _, ok := c.allHandlerFunc[id]; ok {
 		log.Warn("Register called twice for handles ", id)
 	}
 	c.allHandlerFunc[id] = f
-
 }
 
 func (c *CoreServer) deliverMessage(conn net.Conn, msghead *MessageHead, body []byte) {
@@ -34,26 +34,51 @@ func (c *CoreServer) deliverMessage(conn net.Conn, msghead *MessageHead, body []
 var port = flag.String("port", "10000", "指定服务器监听的端口号")
 var conf = flag.String("conf", "", "指定服务器的配置文件")
 
+func (c *CoreServer) initHandleJoinRequest() {
+
+	if c.allHandlerFunc == nil {
+		c.allHandlerFunc = make(map[uint16]handleFunc)
+	}
+
+	c.allHandlerFunc[1] = func(req *GRequest, res *GResponse) {
+		// 1. 从 req中解析出来报过来的IP和端口号
+		// 进行解码
+		nodeInfo := &NodeInfo{}
+		err := proto.Unmarshal(req.DataBuffer, nodeInfo)
+		if err != nil {
+			log.Error("解析收到的节点信息出错: ", err)
+		}
+		log.Debug("%v:%v  %v", nodeInfo.GetIp(), nodeInfo.GetPort(), nodeInfo.GetType())
+
+		// 2. 把集群的信息发回去
+		data, err := proto.Marshal(clusterNodes)
+		if err != nil {
+			log.Error("合成集群信息出错: ", err)
+		}
+		log.Debug("集群信息：%v", data)
+		res.Send(data)
+		res.Close()
+	}
+}
+
+func (c *CoreServer) SetNodeType(t NodeType) {
+	c.t = t
+}
+
+func (c *CoreServer) GetNodeType() NodeType {
+	return c.t
+}
+
 func (c *CoreServer) InitComplete() {
-	// 作为客户端，连接服务器，并准备接收数据
+	c.initHandleJoinRequest()
 
-	// for i := 0; i < 4; i++ {
-	// 	addr, err := net.ResolveTCPAddr("tcp", ":4040")
-	// 	checkErr(err)
-	// 	conn, err := net.DialTCP("tcp", nil, addr)
-	// 	checkErr(err)
-
-	// 	allClientConnects[addr.String()] = conn
-
-	// 	defer conn.Close()
-	// 	go handlClientConn(conn)
-	// }
-	// 作为服务器端监听端口
+	// 作为服务器端监听端口, 正常传输数据使用
 	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:"+*port)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 	listen, err := net.ListenTCP("tcp", addr)
+	defer listen.Close()
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -81,16 +106,16 @@ func (c *CoreServer) handleServerConn(conn net.Conn) {
 	log.Info("===>>> New Connection ===>>>")
 
 	head := new(MessageHead)
-
-	hasError := false
 	unhandledData := make([]byte, 0)
 
-	for false == hasError {
+DISCONNECT:
+	for {
 		buf := make([]byte, BufLength)
 		for {
 			n, err := conn.Read(buf)
 			if err != nil && err != io.EOF {
-				hasError = true
+				log.Error("读取缓冲区出错，有可能是连接断开了: %v", err.Error())
+				break DISCONNECT
 			}
 
 			unhandledData = append(unhandledData, buf[:n]...)
@@ -113,12 +138,17 @@ func (c *CoreServer) handleServerConn(conn net.Conn) {
 	log.Info("===>>> Connection closed ===>>>")
 }
 
+/////////////////////////////////////////////////////////////////
+// 存储集群中所有节点的信息
+var clusterNodes *ClusterInfos = &ClusterInfos{}
+
 type handleFunc func(request *GRequest, response *GResponse)
 
 type CoreServer struct {
 	allHandlerName    map[uint16]string
 	allHandlerFunc    map[uint16]handleFunc
 	allClientConnects map[string]*net.TCPConn
+	t                 NodeType
 }
 
 type ServiceCollection map[string][]ServiceNode

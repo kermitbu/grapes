@@ -5,6 +5,7 @@ import (
 	"io"
 	std "log"
 	"os"
+	"sync"
 	"syscall"
 )
 
@@ -73,7 +74,10 @@ func Fatal(format string, v ...interface{}) {
 	os.Exit(1)
 }
 
+var m *sync.Mutex = new(sync.Mutex)
+
 func ColorOutput(color LogColor, calldepth int, s string) {
+	m.Lock()
 	proc := kernel32.NewProc("SetConsoleTextAttribute")
 	handle, _, _ := proc.Call(uintptr(syscall.Stdout), uintptr(color))
 	stdLog.SetFlags(std.Lshortfile | std.Ldate | std.Ltime)
@@ -81,4 +85,5 @@ func ColorOutput(color LogColor, calldepth int, s string) {
 	handle, _, _ = proc.Call(uintptr(syscall.Stdout), uintptr(7))
 	CloseHandle := kernel32.NewProc("CloseHandle")
 	CloseHandle.Call(handle)
+	m.Unlock()
 }
