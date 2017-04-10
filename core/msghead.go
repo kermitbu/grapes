@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	log "github.com/kermitbu/grapes/log"
@@ -67,4 +68,42 @@ func (r *GResponse) Close() {
 type NodeAddr struct {
 	Ip   string
 	Port string
+}
+
+type RpcHead struct {
+	Version  byte
+	HeadLen  byte
+	BodyLen  uint16
+	FuncName string
+}
+
+func (m *RpcHead) Unpack(buf []byte) error {
+	if len(buf) > utils.SizeStruct(m) {
+		m.Version = buf[0]
+		m.HeadLen = buf[1]
+		m.BodyLen = binary.BigEndian.Uint16(buf[2:4])
+		nameLen := buf[4]
+		m.FuncName = string(buf[5 : nameLen+5])
+
+		return nil
+	}
+	return errors.New("数据长度小于最小协议的长度")
+}
+
+func (m *RpcHead) Pack() (buf []byte) {
+
+	size := utils.SizeStruct(m)
+	buf = make([]byte, size)
+
+	buf[0] = m.Version
+	buf[1] = byte(size)
+	binary.BigEndian.PutUint16(buf[2:4], m.BodyLen)
+	buf[4] = byte(len(m.FuncName))
+
+	buf = BytesCombine(buf[:5], []byte(m.FuncName))
+
+	return buf
+}
+func BytesCombine(pBytes ...[]byte) []byte {
+	return bytes.Join(pBytes, []byte(""))
 }
