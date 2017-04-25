@@ -2,14 +2,14 @@ package core
 
 import (
 	"flag"
-	log "github.com/kermitbu/grapes/log"
-	proto "github.com/kermitbu/grapes/proto"
-	"io"
 	"net"
 	"strconv"
+
+	log "github.com/kermitbu/grapes/log"
+	proto "github.com/kermitbu/grapes/proto"
 )
 
-// 外部用于注册事件处理方法的方法
+// Handle 外部用于注册事件处理方法的方法
 func (c *CoreServer) Handle(id uint16, f handleFunc) {
 
 	if c.allHandlerFunc == nil {
@@ -25,7 +25,7 @@ func (c *CoreServer) Handle(id uint16, f handleFunc) {
 func (c *CoreServer) deliverMessage(conn net.Conn, msghead *MessageHead, body []byte) {
 	if handler, ok := c.allHandlerFunc[msghead.Cmd]; ok {
 
-		req := &GRequest{connect: &conn, head: msghead, DataLen: msghead.BodyLen, DataBuffer: body}
+		req := &GRequest{connect: &conn, Head: msghead, DataLen: msghead.BodyLen, DataBuffer: body}
 		rsp := &GResponse{connect: &conn}
 		handler(req, rsp)
 	} else {
@@ -36,6 +36,7 @@ func (c *CoreServer) deliverMessage(conn net.Conn, msghead *MessageHead, body []
 var port = flag.String("port", "10000", "指定服务器监听的端口号")
 var conf = flag.String("conf", "", "指定服务器的配置文件")
 
+// SetListenPort 设置监听端口
 func (c *CoreServer) SetListenPort(p uint16) {
 	*port = strconv.Itoa(int(p))
 }
@@ -73,135 +74,29 @@ func (c *CoreServer) initHandleJoinRequest() {
 
 var connectedNodes []NodeInfo = make([]NodeInfo, 0)
 
-func (c *CoreServer) InitConnectAsClient() {
-	for i := range connectedNodes {
-		addr, err := net.ResolveTCPAddr("tcp", connectedNodes[i].GetIp()+":"+connectedNodes[i].GetPort())
-		if nil != err {
-			log.Error("Resolve %s:%s error:", connectedNodes[i].GetIp(), connectedNodes[i].GetPort())
-		}
-		conn, err := net.DialTCP("tcp", nil, addr)
-		if nil != err {
-			log.Error("DialTCP %s:%s error:", connectedNodes[i].GetIp(), connectedNodes[i].GetPort())
-		}
-		go c.handleClientConn(conn)
-	}
-}
-
+// InitComplete 初始化服务器完成
 func (c *CoreServer) InitComplete() {
-	c.initHandleJoinRequest()
+	//c.initHandleJoinRequest()
 
 	// 连接相关的服务器
 	c.InitConnectAsClient()
 
-	// 作为服务器端监听端口, 正常传输数据使用
-	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:"+*port)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	listen, err := net.ListenTCP("tcp", addr)
-	defer listen.Close()
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	log.Info("服务器正常启动,开始监听%v端口", *port)
-
-	complete := make(chan int, 1)
-
-	go func(listen *net.TCPListener) {
-		for {
-			conn, err := listen.Accept()
-			if err != nil {
-				log.Fatal(err.Error())
-			}
-			go c.handleServerConn(conn)
-		}
-	}(listen)
-
-	<-complete
+	c.InitConnectAsServer()
 }
 
+// BufLength 缓冲区长度
 const BufLength = 1024
 
-func (c *CoreServer) handleServerConn(conn net.Conn) {
-	log.Info("===>>> New Connection ===>>>")
+// Command 定义命令类型
+type Command uint16
 
-	head := new(MessageHead)
-	unhandledData := make([]byte, 0)
+// BufferData 消息数据
+type BufferData []byte
 
-DISCONNECT:
-	for {
-		buf := make([]byte, BufLength)
-		for {
-			n, err := conn.Read(buf)
-			if err != nil && err != io.EOF {
-				log.Error("读取缓冲区出错，有可能是连接断开了: %v", err.Error())
-				break DISCONNECT
-			}
+var BufferChan = make(chan BufferData, 100)
 
-			unhandledData = append(unhandledData, buf[:n]...)
-
-			if n != BufLength {
-				break
-			}
-		}
-
-		if len(unhandledData) == 0 {
-			log.Error("读取到的数据长度为0，有可能是连接断开了")
-			break
-		}
-		log.Debug("接收到数据：%v", unhandledData)
-
-		for nil == head.Unpack(unhandledData) {
-			msgLen := head.BodyLen + uint16(head.HeadLen)
-			msgData := unhandledData[:msgLen]
-			unhandledData = unhandledData[msgLen:]
-
-			c.deliverMessage(conn, head, msgData[head.HeadLen:])
-		}
-	}
-	log.Info("===>>> Connection closed ===>>>")
-}
-
-func (c *CoreServer) handleClientConn(conn net.Conn) {
-	log.Info("===>>> New Connection ===>>>")
-
-	head := new(MessageHead)
-	unhandledData := make([]byte, 0)
-
-DISCONNECT:
-	for {
-		buf := make([]byte, BufLength)
-		for {
-			n, err := conn.Read(buf)
-			if err != nil && err != io.EOF {
-				log.Error("读取缓冲区出错，有可能是连接断开了: %v", err.Error())
-				break DISCONNECT
-			}
-
-			unhandledData = append(unhandledData, buf[:n]...)
-
-			if n != BufLength {
-				break
-			}
-		}
-
-		if len(unhandledData) == 0 {
-			log.Error("读取到的数据长度为0，有可能是连接断开了")
-			break
-		}
-		log.Debug("接收到数据：%v", unhandledData)
-
-		for nil == head.Unpack(unhandledData) {
-			msgLen := head.BodyLen + uint16(head.HeadLen)
-			msgData := unhandledData[:msgLen]
-			unhandledData = unhandledData[msgLen:]
-
-			c.deliverMessage(conn, head, msgData[head.HeadLen:])
-		}
-	}
-	log.Info("===>>> Connection closed ===>>>")
-}
+// MessageNodeMap 消息与节点的映射, 用于找到消息将要发送的节点。
+var MessageNodeMap = make(map[uint16][]BufferData, 1)
 
 /////////////////////////////////////////////////////////////////
 // 存储集群中所有节点的信息

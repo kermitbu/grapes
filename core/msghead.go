@@ -41,7 +41,7 @@ func (m *MessageHead) Pack() (buf []byte) {
 
 type GRequest struct {
 	connect    *net.Conn
-	head       *MessageHead
+	Head       *MessageHead
 	DataLen    uint16
 	DataBuffer []byte
 }
