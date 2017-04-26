@@ -7,17 +7,43 @@ import (
 	log "github.com/kermitbu/grapes/log"
 )
 
+type ConnectInfo struct {
+	NodeInfo
+	connect *net.TCPConn
+}
+
+type CoreServer struct {
+	allHandlerFunc map[uint16]handleFunc
+	allConnects    []ConnectInfo
+	groupName      string // 服务组名
+}
+
+var ConnectInfoMapByCmd = make(map[uint16][]ConnectInfo)
+var ConnectInfoMapByType = make(map[NodeType][]ConnectInfo)
+
 // InitConnectAsClient  a
 func (c *CoreServer) InitConnectAsClient() {
+	if c.allHandlerFunc == nil {
+		c.allConnects = make([]ConnectInfo, 0, 0)
+	}
 	for i := range connectedNodes {
-		addr, err := net.ResolveTCPAddr("tcp", connectedNodes[i].GetIp()+":"+connectedNodes[i].GetPort())
+		node := connectedNodes[i]
+		addr, err := net.ResolveTCPAddr("tcp", node.GetIp()+":"+node.GetPort())
 		if nil != err {
-			log.Error("Resolve %s:%s error:", connectedNodes[i].GetIp(), connectedNodes[i].GetPort())
+			log.Error("Resolve %s:%s error:", node.GetIp(), node.GetPort())
 		}
 		conn, err := net.DialTCP("tcp", nil, addr)
 		if nil != err {
-			log.Error("DialTCP %s:%s error:", connectedNodes[i].GetIp(), connectedNodes[i].GetPort())
+			log.Error("DialTCP %s:%s error:", node.GetIp(), node.GetPort())
 		}
+		nodeinfo := ConnectInfo{NodeInfo: node, connect: conn}
+		ConnectInfoMapByType[node.Type] = append(ConnectInfoMapByType[node.Type], nodeinfo)
+
+		cmd := node.InsteristCmd
+		for j := range cmd {
+			ConnectInfoMapByCmd[uint16(cmd[j])] = append(ConnectInfoMapByCmd[uint16(cmd[j])], nodeinfo)
+		}
+
 		go c.handleClientConn(conn)
 	}
 }

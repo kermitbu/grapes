@@ -104,12 +104,6 @@ var clusterNodes *ClusterInfos = &ClusterInfos{}
 
 type handleFunc func(request *GRequest, response *GResponse)
 
-type CoreServer struct {
-	allHandlerFunc    map[uint16]handleFunc
-	allClientConnects map[string]*net.TCPConn
-	groupName         string // 服务组名
-}
-
 func (c *CoreServer) SetGroupName(n string) {
 	c.groupName = n
 }

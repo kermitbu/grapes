@@ -1,14 +1,18 @@
+/*
+ * @Author: kermit.bu
+ * @Date: 2017-04-24 15:40:36
+ * @Last Modified by: kermit.bu
+ * @Last Modified time: 2017-04-24 16:15:47
+ */
 package main
 
 import (
+	"flag"
+
 	grapes "github.com/kermitbu/grapes/core"
-	log "github.com/kermitbu/grapes/log"
-	proto "github.com/kermitbu/grapes/proto"
-	"io"
-	"kmtt"
-	"net"
 )
 
+// GrapesMQ asd
 type GrapesMQ struct {
 	grapes.CoreServer
 }
@@ -26,21 +30,13 @@ type ServerGroup struct {
 }
 
 func main() {
-
+	flag.Parse()
 	// 创建一个服务器实例
 	svr := new(GrapesMQ)
 
 	// 注册事件处理方法
 	svr.Handle(1, func(req *grapes.GRequest, res *grapes.GResponse) {
-
-		// 构造返回的数据
-		test := &kmtt.ResponseTestData{Label: "this is a test string.", Type: 123}
-		data, err := proto.Marshal(test)
-		if err != nil {
-			log.Fatal("marshaling error: ", err)
-		}
-
-		res.Send(data)
+		// req.Head.Cmd
 	})
 
 	// 读取配置，连接关联的后端服务器。
@@ -49,26 +45,4 @@ func main() {
 
 	// 服务器初始化完成，开始对外提供服务
 	svr.InitComplete()
-}
-
-const (
-	BufLength = 1024
-)
-
-func Handle(conn net.Conn) {
-	for {
-		data := make([]byte, 0)
-		buf := make([]byte, BufLength)
-		for {
-			n, err := conn.Read(buf)
-			if err != nil && err != io.EOF {
-				log.Fatal(err.Error())
-			}
-			data = append(data, buf[:n]...)
-			if n != BufLength {
-				break
-			}
-		}
-		log.Debug("Receive message")
-	}
 }
