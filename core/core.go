@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"flag"
 	"net"
 	"strconv"
@@ -117,9 +118,26 @@ func (c *CoreServer) NotifyConnectedNodes(b []byte) error {
 	return nil
 }
 
-// 向指定节点发送数据
-func (c *CoreServer) RequestSpecifiedNode(addr string, data []byte, f handleFunc) error {
+// RequestSpecifiedNode 向指定节点发送数据，只有自身作为客户端的时候，才可能发起请求
+func (c *CoreServer) RequestSpecifiedNode(ip string, port string, data []byte, f handleFunc) error {
+	// 先找到对应的节点
+	if len(data) <= 0 {
+		return errors.New("data is empty")
+	}
+
+	for i := range c.allConnects {
+		if c.allConnects[i].Ip == ip && c.allConnects[i].Port == port {
+			c.allConnects[i].connect.Write(data)
+		}
+	}
+
+	// 如何确定唯一的请求 ???
+
 	return nil
+}
+
+func (c *CoreServer) SetRouteStrategy() {
+
 }
 
 // 向指定节点组发送数据

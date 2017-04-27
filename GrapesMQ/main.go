@@ -36,7 +36,13 @@ func main() {
 
 	// 注册事件处理方法
 	svr.Handle(1, func(req *grapes.GRequest, res *grapes.GResponse) {
-		// req.Head.Cmd
+
+		// 向指定节点发送数据
+		svr.RequestSpecifiedNode("127.0.0.1", "11000", []byte("ffff"), func(request *grapes.GRequest, response *grapes.GResponse) {
+			// req.Head.Cmd
+			res.Send([]byte("resp buffer"))
+		})
+
 	})
 
 	// 读取配置，连接关联的后端服务器。

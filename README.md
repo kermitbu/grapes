@@ -1,39 +1,44 @@
+
+[TOC]
+
+
 # Grapes
 
-协议定义
-
-| MessageHead | MessageBody |
-|--------|--------|
-|   4字节ID + 2字节body长度|   消息体     |
-
-
 ### 设计想法
-动态发现，每个节点需要知道Master的地址。
-Master的地址可以通过参数的方式传递给服务器节点
-服务启动之后，先连接Master，将自身的服务信息告知Master。
-然后Master将发过来的信息保存起来
+最简单的方法来创建一个节点，每个节点定义一个继承于CoreServer的结构即可。
+```go
+package main
+
+import (
+	"flag"
+	grapes "github.com/kermitbu/grapes/core"
+)
+
+type GrapesMQ struct {
+	grapes.CoreServer
+}
+
+func main() {
+	flag.Parse()
+	svr := new(GrapesMQ)
+	// 注册事件处理方法
+	svr.Handle(1, func(req *grapes.GRequest, res *grapes.GResponse) {
+		// 处理业务逻辑
+	})
+
+	// 服务器初始化完成，开始对外提供服务
+	svr.InitComplete()
+}
+```
 
 
-1. 启动后，组播，告诉自己上线了。
-2. 然后接收来自集群内节点的信息，得到目前集群的状态。
-3. 上报Master，自己可以工作了
-4. master通知所有节点，集群内新增加一个节点。
-
-
-### Guide服务器
-负责负载均衡
-
-### Connector服务器
-负责保持与Client的连接，并把Client的消息转发给Service服务器进行处理。
-Service处理完成之后，再通过Connector返回给Clinet
-
-### Service服务器
-后端服务器，负责处理业务逻辑。
-相同Service服务器的负载分两种方式，等分方式和最大处理数方式
-**等分方式** 客户端的请求按照Client的ID被平均路由到指定的服务器
-**最大处理数方式** 客户端的请求尽可能的路由到同一台服务器，当Service处理的客户数到达一定程度后，新业务请求被路由到新的一台服务器上。
-
-### Master服务器
-用于管理所有的服务器，每个节点启动之后，自动注册到Master服务器，同时Master会把当前所有的服务器信息同步到新启动的节点上。
-
-### 粘包处理
+协议定义
+采用消息头+PB序列化数据的方式
+```proto
+type MessageHead struct {
+	Cmd     uint16
+	Version byte
+	HeadLen byte
+	BodyLen uint16
+}
+```
