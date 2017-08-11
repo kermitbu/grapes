@@ -2582,6 +2582,11 @@ type Container struct {
 	object interface{}
 }
 
+// New - Create a new gabs JSON object.
+func New() *Container {
+	return &Container{map[string]interface{}{}}
+}
+
 // Data - Return the contained data as an interface{}.
 func (g *Container) Data() interface{} {
 	if g == nil {
@@ -2590,15 +2595,10 @@ func (g *Container) Data() interface{} {
 	return g.object
 }
 
-// New - Create a new gabs JSON object.
-func New() *Container {
-	return &Container{map[string]interface{}{}}
-}
-
 // Set - Set the value of a field at a JSON path, any parts of the path that do not exist will be
 // constructed, and if a collision occurs with a non object type whilst iterating the path an error
 // is returned.
-func (g *Container) Set(value interface{}, path ...string) (*Container, error) {
+func (g *Container) set(value interface{}, path ...string) (*Container, error) {
 	if len(path) == 0 {
 		g.object = value
 		return g, nil
@@ -2624,8 +2624,20 @@ func (g *Container) Set(value interface{}, path ...string) (*Container, error) {
 }
 
 // SetP - Does the same as Set, but using a dot notation JSON path.
-func (g *Container) SetP(value interface{}, path string) (*Container, error) {
-	return g.Set(value, strings.Split(path, ".")...)
+func (g *Container) Set(value interface{}, path string) (*Container, error) {
+	return g.set(value, strings.Split(path, ".")...)
+}
+
+// SetIndex - Set a value of an array element based on the index.
+func (g *Container) SetIndex(value interface{}, index int) (*Container, error) {
+	if array, ok := g.Data().([]interface{}); ok {
+		if index >= len(array) {
+			return &Container{nil}, ErrOutOfBounds
+		}
+		array[index] = value
+		return &Container{array[index]}, nil
+	}
+	return &Container{nil}, ErrNotArray
 }
 
 // String - Converts the contained object to a JSON formatted string.
@@ -2641,4 +2653,68 @@ func (g *Container) Bytes() []byte {
 		}
 	}
 	return []byte("{}")
+}
+
+// ArrayOfSize - Create a new JSON array of a particular size at a path. Returns an error if the
+// path contains a collision with a non object type.
+func (g *Container) ArrayOfSize(size int, path ...string) (*Container, error) {
+	a := make([]interface{}, size)
+	return g.set(a, path...)
+}
+
+// ArrayOfSizeP - Does the same as ArrayOfSize, but using a dot notation JSON path.
+func (g *Container) ArrayOfSizeP(size int, path string) (*Container, error) {
+	return g.ArrayOfSize(size, strings.Split(path, ".")...)
+}
+
+// ArrayOfSizeI - Create a new JSON array of a particular size at an array index. Returns an error
+// if the object is not an array or the index is out of bounds.
+func (g *Container) ArrayOfSizeI(size, index int) (*Container, error) {
+	a := make([]interface{}, size)
+	return g.SetIndex(a, index)
+}
+
+// Search - Attempt to find and return an object within the JSON structure by specifying the
+// hierarchy of field names to locate the target. If the search encounters an array and has not
+// reached the end target then it will iterate each object of the array for the target and return
+// all of the results in a JSON array.
+func (g *Container) Search(hierarchy ...string) *Container {
+	var object interface{}
+
+	object = g.Data()
+	for target := 0; target < len(hierarchy); target++ {
+		if mmap, ok := object.(map[string]interface{}); ok {
+			object, ok = mmap[hierarchy[target]]
+			if !ok {
+				return nil
+			}
+		} else if marray, ok := object.([]interface{}); ok {
+			tmpArray := []interface{}{}
+			for _, val := range marray {
+				tmpGabs := &Container{val}
+				res := tmpGabs.Search(hierarchy[target:]...)
+				if res != nil {
+					tmpArray = append(tmpArray, res.Data())
+				}
+			}
+			if len(tmpArray) == 0 {
+				return nil
+			}
+			return &Container{tmpArray}
+		} else {
+			return nil
+		}
+	}
+	return &Container{object}
+}
+
+// Index - Attempt to find and return an object within a JSON array by index.
+func (g *Container) Index(index int) *Container {
+	if array, ok := g.Data().([]interface{}); ok {
+		if index >= len(array) {
+			return &Container{nil}
+		}
+		return &Container{array[index]}
+	}
+	return &Container{nil}
 }
